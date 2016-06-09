@@ -236,7 +236,11 @@
         "micUnknownError": "Cannot use microphone for a unknown reason.",
         "micPermissionDeniedError": "You have not granted permission to use your microphone.",
         "micNotFoundError": "Requested microphone was not found.",
-        "micConstraintFailedError": "Yor microphone does not satisfy some of required constraints."
+        "micConstraintFailedError": "Yor microphone does not satisfy some of required constraints.",
+        "ffFullscreenShareQuestionTitle": "Share the whole screen, or a single window?",
+        "ffFullscreenShareQuestion": "In firefox you should choose what to share.",
+        "ffFullscreenShareQuestionYes": "Share Full screen",
+        "ffFullscreenShareQuestionNo": "Pick a single window"
     },
     "email":
     {

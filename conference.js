@@ -176,9 +176,10 @@ function hangup (requestFeedback = false) {
  *      from settings will be used
  * @param {string|null} [micDeviceId] - microphone device id, if undefined - one
  *      from settings will be used
+ * @param {string|null} [ffShareMode] - Firefox screen share mode {window(default)|screen}
  * @returns {Promise<JitsiLocalTrack[]>}
  */
-function createLocalTracks (devices, cameraDeviceId, micDeviceId) {
+function createLocalTracks (devices, cameraDeviceId, micDeviceId, ffShareMode) {
     return JitsiMeetJS.createLocalTracks({
         // copy array to avoid mutations inside library
         devices: devices.slice(0),
@@ -191,7 +192,8 @@ function createLocalTracks (devices, cameraDeviceId, micDeviceId) {
             ? APP.settings.getMicDeviceId()
             : micDeviceId,
         // adds any ff fake device settings if any
-        firefox_fake_device: config.firefox_fake_device
+        firefox_fake_device: config.firefox_fake_device,
+        ffShareMode: ffShareMode
     }).catch(function (err) {
         console.error('failed to create local tracks', ...devices, err);
         return Promise.reject(err);
@@ -207,6 +209,112 @@ function setCurrentMediaDevices(devices) {
         d => d.kind === 'audioinput');
     currentVideoInputDevices = devices.filter(
         d => d.kind === 'videoinput');
+}
+
+/**
+ * On firefox ask for destop share type: full screen or pick window.
+ * @param this named as that
+ * @returns {string} - Firefox screen share mode {window(default)|screen}
+ */
+function askFirefoxScreensahringMode (that) {
+    var title = APP.translation.generateTranslationHTML(
+        "dialog.ffFullscreenShareQuestionTitle"
+    );
+    var msg = APP.translation.generateTranslationHTML(
+        "dialog.ffFullscreenShareQuestion"
+    );
+    var buttonYesTxt = APP.translation.generateTranslationHTML(
+        "dialog.ffFullscreenShareQuestionYes"
+    );
+    var buttonNoTxt = APP.translation.generateTranslationHTML(
+        "dialog.ffFullscreenShareQuestionNo"
+    );
+    var buttons = [{title: buttonYesTxt, value: "yes"},{title: buttonNoTxt, value: "no"}];
+
+    APP.UI.messageHandler.openDialog(
+        title,
+        msg,
+        true,
+        buttons,
+        function (e, submitValue) {
+
+            // Do not close the dialog yet
+            // e.preventDefault();
+
+            // Open dialog
+            var ffShareMode = 'window';
+            if (submitValue === 'yes') {
+               ffShareMode = 'screen';
+            }
+            doScreenShare(ffShareMode, that);
+        }
+    );
+}
+
+/**
+ * do the screen share
+ * moved from this, to be able to handle confirmation
+ *
+ * @param {string|null} [ffShareMode] - Firefox screen share mode {window(default)|screen}
+ * @param this
+ */
+function doScreenShare(ffShareMode, that) {
+    createLocalTracks(['desktop'], null, null, ffShareMode).then(([stream]) => {
+        stream.on(
+            TrackEvents.LOCAL_TRACK_STOPPED,
+            () => {
+                // if stream was stopped during screensharing session
+                // then we should switch to video
+                // otherwise we stopped it because we already switched
+                // to video, so nothing to do here
+                if (that.isSharingScreen) {
+                    that.toggleScreenSharing(false);
+                }
+            }
+        );
+        return that.useVideoStream(stream);
+    }).then(() => {
+        that.videoSwitchInProgress = false;
+        console.log('sharing local desktop');
+    }).catch((err) => {
+        that.videoSwitchInProgress = false;
+        that.toggleScreenSharing(false);
+
+        if (err.name === TrackErrors.CHROME_EXTENSION_USER_CANCELED) {
+            return;
+        }
+
+        console.error('failed to share local desktop', err);
+
+        if (err.name === TrackErrors.FIREFOX_EXTENSION_NEEDED) {
+            APP.UI.showExtensionRequiredDialog(
+                config.desktopSharingFirefoxExtensionURL
+            );
+            return;
+        }
+
+        // Handling:
+        // TrackErrors.PERMISSION_DENIED
+        // TrackErrors.CHROME_EXTENSION_INSTALLATION_ERROR
+        // TrackErrors.GENERAL
+        // and any other
+        let dialogTxt;
+        let dialogTitle;
+
+        if (err.name === TrackErrors.PERMISSION_DENIED) {
+            dialogTxt = APP.translation.generateTranslationHTML(
+                "dialog.screenSharingPermissionDeniedError");
+            dialogTitle = APP.translation.generateTranslationHTML(
+                "dialog.error");
+        } else {
+            dialogTxt = APP.translation.generateTranslationHTML(
+                "dialog.failtoinstall");
+            dialogTitle = APP.translation.generateTranslationHTML(
+                "dialog.permissionDenied");
+        }
+
+        APP.UI.messageHandler.openDialog(dialogTitle, dialogTxt, false);
+    });
 }
 
 class ConferenceConnector {
@@ -1016,62 +1124,14 @@ export default {
         this.videoSwitchInProgress = true;
 
         if (shareScreen) {
-            createLocalTracks(['desktop']).then(([stream]) => {
-                stream.on(
-                    TrackEvents.LOCAL_TRACK_STOPPED,
-                    () => {
-                        // if stream was stopped during screensharing session
-                        // then we should switch to video
-                        // otherwise we stopped it because we already switched
-                        // to video, so nothing to do here
-                        if (this.isSharingScreen) {
-                            this.toggleScreenSharing(false);
-                        }
-                    }
-                );
-                return this.useVideoStream(stream);
-            }).then(() => {
-                this.videoSwitchInProgress = false;
-                console.log('sharing local desktop');
-            }).catch((err) => {
-                this.videoSwitchInProgress = false;
-                this.toggleScreenSharing(false);
 
-                if (err.name === TrackErrors.CHROME_EXTENSION_USER_CANCELED) {
-                    return;
-                }
+            var ffShareMode = 'window';
+            if ( arguments.length == 0 && JitsiMeetJS.util.RTCBrowserType.isFirefox() ) {
+                askFirefoxScreensahringMode(this);
+            } else {
+                doScreenShare(ffShareMode, this);
+            }
 
-                console.error('failed to share local desktop', err);
-
-                if (err.name === TrackErrors.FIREFOX_EXTENSION_NEEDED) {
-                    APP.UI.showExtensionRequiredDialog(
-                        config.desktopSharingFirefoxExtensionURL
-                    );
-                    return;
-                }
-
-                // Handling:
-                // TrackErrors.PERMISSION_DENIED
-                // TrackErrors.CHROME_EXTENSION_INSTALLATION_ERROR
-                // TrackErrors.GENERAL
-                // and any other
-                let dialogTxt;
-                let dialogTitle;
-
-                if (err.name === TrackErrors.PERMISSION_DENIED) {
-                    dialogTxt = APP.translation.generateTranslationHTML(
-                        "dialog.screenSharingPermissionDeniedError");
-                    dialogTitle = APP.translation.generateTranslationHTML(
-                        "dialog.error");
-                } else {
-                    dialogTxt = APP.translation.generateTranslationHTML(
-                        "dialog.failtoinstall");
-                    dialogTitle = APP.translation.generateTranslationHTML(
-                        "dialog.permissionDenied");
-                }
-
-                APP.UI.messageHandler.openDialog(dialogTitle, dialogTxt, false);
-            });
         } else {
             createLocalTracks(['video']).then(
                 ([stream]) => this.useVideoStream(stream)
