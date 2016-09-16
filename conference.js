@@ -216,7 +216,7 @@ function setCurrentMediaDevices(devices) {
  * @param this named as that
  * @returns {string} - Firefox screen share mode {window(default)|screen}
  */
-function askFirefoxScreensahringMode (that) {
+function askFirefoxScreensharingMode (that) {
     var title = APP.translation.generateTranslationHTML(
         "dialog.ffFullscreenShareQuestionTitle"
     );
@@ -1127,7 +1127,7 @@ export default {
 
             var ffShareMode = 'window';
             if ( arguments.length == 0 && JitsiMeetJS.util.RTCBrowserType.isFirefox() ) {
-                askFirefoxScreensahringMode(this);
+                askFirefoxScreensharingMode(this);
             } else {
                 doScreenShare(ffShareMode, this);
             }
