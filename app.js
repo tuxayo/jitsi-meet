@@ -36,6 +36,8 @@ import API from './modules/API/API';
 import UIEvents from './service/UI/UIEvents';
 import getTokenData from "./modules/tokendata/TokenData";
 import translation from "./modules/translation/translation";
+// For remote control testing:
+// import remoteControlController from "./modules/remotecontrol/Controller";
 
 const ConferenceEvents = JitsiMeetJS.events.conference;
 
@@ -236,7 +238,8 @@ function init() {
             }
 
             APP.UI.initConference();
-
+            // For remote control testing:
+            // remoteControlController.start($("#largeVideoWrapper"));
             APP.UI.addListener(UIEvents.LANG_CHANGED, language => {
                 APP.translation.setLanguage(language);
                 APP.settings.setLanguage(language);
@@ -299,6 +302,8 @@ $(document).ready(function () {
     APP.translation.init(settings.getLanguage());
 
     APP.API.init(APP.tokenData.externalAPISettings);
+    // For remote control testing:
+    // APP.API.init({forceEnable: true});
 
     obtainConfigAndInit();
 });
