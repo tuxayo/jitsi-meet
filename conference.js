@@ -1003,8 +1003,6 @@ export default {
         let externalInstallation = false;
 
         if (shareScreen) {
-            // For remote control testing:
-            // remoteControlReceiver.start();
             createLocalTracks({
                 devices: ['desktop'],
                 desktopSharingExtensionExternalInstallation: {
@@ -1094,8 +1092,7 @@ export default {
                     dialogTitleKey, dialogTxt, false);
             });
         } else {
-            // For remote control testing:
-            // remoteControlReceiver.stop();
+            APP.remoteControl.receiver.stop();
             createLocalTracks({ devices: ['video'] }).then(
                 ([stream]) => this.useVideoStream(stream)
             ).then(() => {

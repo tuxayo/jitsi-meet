@@ -55,8 +55,8 @@ function initCommands() {
         "toggle-share-screen":
             APP.conference.toggleScreenSharing.bind(APP.conference),
         "video-hangup": () => APP.conference.hangup(),
-        "remote-control-supported": isSupported =>
-            APP.remoteControl.onRemoteControlSupported(isSupported)
+        "remote-control-event": event =>
+            APP.remoteControl.onRemoteControlAPIEvent(event)
     };
     Object.keys(commands).forEach(function (key) {
         postis.listen(key, commands[key]);

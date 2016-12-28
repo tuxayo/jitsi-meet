@@ -238,8 +238,6 @@ function init() {
             }
 
             APP.UI.initConference();
-            // For remote control testing:
-            // remoteControlController.start($("#largeVideoWrapper"));
             APP.UI.addListener(UIEvents.LANG_CHANGED, language => {
                 APP.translation.setLanguage(language);
                 APP.settings.setLanguage(language);
