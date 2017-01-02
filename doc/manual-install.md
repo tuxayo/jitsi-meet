@@ -2,7 +2,7 @@
 
 This describes configuring a server `jitsi.example.com` running Debian or a Debian Derivative. You will need to
 change references to that to match your host, and generate some passwords for
-`YOURSECRET1`, `YOURSECRET2`, `YOURSECRET3` and `YOURSECRET4`.
+`YOURSECRET1`, `YOURSECRET2` and `YOURSECRET3`.
 
 There are also some complete [example config files](https://github.com/jitsi/jitsi-meet/tree/master/doc/example-config-files/) available, mentioned in each section.
 
@@ -150,7 +150,7 @@ ant dist.{os-name}
 Run jicofo:
 ```sh
 cd dist/{os-name}'
-./jicofo.sh --domain=jitsi.example.com --secret=YOURSECRET2 --user_domain=auth.jitsi.example.com --user_name=focus --user_password=YOURSECRET3
+./jicofo.sh --host=127.0.0.1 --domain=jitsi.example.com --secret=YOURSECRET2 --user_domain=auth.jitsi.example.com --user_name=focus --user_password=YOURSECRET3
 ```
 
 ## Deploy Jitsi Meet

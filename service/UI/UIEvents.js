@@ -23,20 +23,27 @@ export default {
     ETHERPAD_CLICKED: "UI.etherpad_clicked",
     SHARED_VIDEO_CLICKED: "UI.start_shared_video",
     /**
+     * Indicates that an invite button has been clicked.
+     */
+    INVITE_CLICKED: "UI.invite_clicked",
+    /**
      * Updates shared video with params: url, state, time(optional)
      * Where url is the video link, state is stop/start/pause and time is the
      * current video playing time.
      */
     UPDATE_SHARED_VIDEO: "UI.update_shared_video",
-    ROOM_LOCK_CLICKED: "UI.room_lock_clicked",
-    USER_INVITED: "UI.user_invited",
     USER_KICKED: "UI.user_kicked",
     REMOTE_AUDIO_MUTED: "UI.remote_audio_muted",
-    FULLSCREEN_TOGGLE: "UI.fullscreen_toggle",
+    TOGGLE_FULLSCREEN: "UI.toogle_fullscreen",
+    FULLSCREEN_TOGGLED: "UI.fullscreen_toggled",
     AUTH_CLICKED: "UI.auth_clicked",
     TOGGLE_CHAT: "UI.toggle_chat",
     TOGGLE_SETTINGS: "UI.toggle_settings",
     TOGGLE_CONTACT_LIST: "UI.toggle_contact_list",
+    /**
+     * Notifies that the profile toolbar button has been clicked.
+     */
+    TOGGLE_PROFILE: "UI.toggle_profile",
     /**
      * Notifies that a command to toggle the film strip has been issued. The
      * event may optionally specify a {Boolean} (primitive) value to assign to
@@ -68,13 +75,78 @@ export default {
     VIDEO_DEVICE_CHANGED: "UI.video_device_changed",
     AUDIO_DEVICE_CHANGED: "UI.audio_device_changed",
     AUDIO_OUTPUT_DEVICE_CHANGED: "UI.audio_output_device_changed",
+
     /**
      * Notifies interested listeners that the follow-me feature is enabled or
      * disabled.
      */
     FOLLOW_ME_ENABLED: "UI.follow_me_enabled",
+
     /**
      * Notifies that flipX property of the local video is changed.
      */
-    LOCAL_FLIPX_CHANGED: "UI.local_flipx_changed"
+    LOCAL_FLIPX_CHANGED: "UI.local_flipx_changed",
+
+    // An event which indicates that the resolution of a remote video has
+    // changed.
+    RESOLUTION_CHANGED: "UI.resolution_changed",
+
+    /**
+     * Notifies that the button "Go to webstore" is pressed on the dialog for
+     * external extension installation.
+     */
+    OPEN_EXTENSION_STORE: "UI.open_extension_store",
+
+    /**
+     * Notifies that the button "Cancel" is pressed on the dialog for
+     * external extension installation.
+     */
+    EXTERNAL_INSTALLATION_CANCELED: "UI.external_installation_canceled",
+
+    /**
+     * Notifies that the side toolbar container has been toggled. The actual
+     * event must contain the identifier of the container that has been toggled
+     * and information about toggle on or off.
+     */
+    SIDE_TOOLBAR_CONTAINER_TOGGLED: "UI.side_container_toggled",
+
+    /**
+     * Notifies that the raise hand has been changed.
+     */
+    LOCAL_RAISE_HAND_CHANGED: "UI.local_raise_hand_changed",
+
+    /**
+     * Notifies that the avatar is displayed or not on the largeVideo.
+     */
+    LARGE_VIDEO_AVATAR_VISIBLE: "UI.large_video_avatar_visible",
+
+    /**
+     * Toggling room lock
+     */
+    TOGGLE_ROOM_LOCK: "UI.toggle_room_lock",
+
+    /**
+     * Adding contact to contact list
+     */
+    CONTACT_ADDED: "UI.contact_added",
+
+    /**
+     * Removing the contact from contact list
+     */
+    CONTACT_REMOVED: "UI.contact_removed",
+
+    /**
+     * Indicates that a user avatar has changed.
+     */
+    USER_AVATAR_CHANGED: "UI.user_avatar_changed",
+
+    /**
+     * Display name changed.
+     */
+    DISPLAY_NAME_CHANGED: "UI.display_name_changed",
+
+    /**
+     * Indicates that a password is required for the call.
+     */
+    PASSWORD_REQUIRED: "UI.password_required"
 };

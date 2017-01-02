@@ -1,6 +1,8 @@
 /* global APP, JitsiMeetJS, config */
-//FIXME:
-import LoginDialog from './modules/UI/authentication/LoginDialog';
+const logger = require("jitsi-meet-logger").getLogger(__filename);
+
+import AuthHandler from './modules/UI/authentication/AuthHandler';
+import jitsiLocalStorage from './modules/util/JitsiLocalStorage';
 
 const ConnectionEvents = JitsiMeetJS.events.connection;
 const ConnectionErrors = JitsiMeetJS.errors.connection;
@@ -84,38 +86,11 @@ function connect(id, password, roomName) {
 
         function handleConnectionFailed(err) {
             unsubscribe();
-            console.error("CONNECTION FAILED:", err);
+            logger.error("CONNECTION FAILED:", err);
             reject(err);
         }
 
         checkForAttachParametersAndConnect(id, password, connection);
-    });
-}
-
-/**
- * Show Authentication Dialog and try to connect with new credentials.
- * If failed to connect because of PASSWORD_REQUIRED error
- * then ask for password again.
- * @param {string} [roomName]
- * @returns {Promise<JitsiConnection>}
- */
-function requestAuth(roomName) {
-    return new Promise(function (resolve, reject) {
-        let authDialog = LoginDialog.showAuthDialog(
-            function (id, password) {
-                connect(id, password, roomName).then(function (connection) {
-                    authDialog.close();
-                    resolve(connection);
-                }, function (err) {
-                    if (err === ConnectionErrors.PASSWORD_REQUIRED) {
-                        authDialog.displayError(err);
-                    } else {
-                        authDialog.close();
-                        reject(err);
-                    }
-                });
-            }
-        );
     });
 }
 
@@ -135,9 +110,9 @@ function requestAuth(roomName) {
 export function openConnection({id, password, retry, roomName}) {
 
     let usernameOverride
-        = window.localStorage.getItem("xmpp_username_override");
+        = jitsiLocalStorage.getItem("xmpp_username_override");
     let passwordOverride
-        = window.localStorage.getItem("xmpp_password_override");
+        = jitsiLocalStorage.getItem("xmpp_password_override");
 
     if (usernameOverride && usernameOverride.length > 0) {
         id = usernameOverride;
@@ -157,7 +132,7 @@ export function openConnection({id, password, retry, roomName}) {
             if (config.token) {
                 throw err;
             } else {
-                return requestAuth(roomName);
+                return AuthHandler.requestAuth(roomName, connect);
             }
         } else {
             throw err;

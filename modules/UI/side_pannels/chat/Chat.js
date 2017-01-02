@@ -3,30 +3,56 @@
 import {processReplacements, linkify} from './Replacement';
 import CommandsProcessor from './Commands';
 import ToolbarToggler from '../../toolbars/ToolbarToggler';
+import VideoLayout from "../../videolayout/VideoLayout";
 
 import UIUtil from '../../util/UIUtil';
 import UIEvents from '../../../../service/UI/UIEvents';
 
-var smileys = require("./smileys.json").smileys;
+import { smileys } from './smileys';
 
-var notificationInterval = false;
-var unreadMessages = 0;
+let unreadMessages = 0;
+const sidePanelsContainerId = 'sideToolbarContainer';
+const htmlStr = `
+    <div id="chat_container" class="sideToolbarContainer__inner">
+        <div id="nickname">
+            <span data-i18n="chat.nickname.title"></span>
+            <form>
+                <input type='text'
+                       class="input-control" id="nickinput" autofocus
+                    data-i18n="[placeholder]chat.nickname.popover">
+            </form>
+        </div>
 
+        <div id="chatconversation"></div>
+        <audio id="chatNotification" src="sounds/incomingMessage.wav" 
+            preload="auto"></audio>
+        <textarea id="usermsg" autofocus 
+            data-i18n="[placeholder]chat.messagebox"></textarea>
+        <div id="smileysarea">
+            <div id="smileys" id="toggle_smileys">
+                <img src="images/smile.svg"/>
+            </div>
+        </div>
+    </div>`;
+
+function initHTML() {
+    $(`#${sidePanelsContainerId}`)
+        .append(htmlStr);
+}
 
 /**
- * Shows/hides a visual notification, indicating that a message has arrived.
+ * The container id, which is and the element id.
  */
-function setVisualNotification(show) {
-    var unreadMsgElement = document.getElementById('unreadMessages');
-    var unreadMsgBottomElement
-        = document.getElementById('bottomUnreadMessages');
+var CHAT_CONTAINER_ID = "chat_container";
 
-    var glower = $('#toolbar_button_chat');
-    var bottomGlower = $('#chatBottomButton');
+/**
+ *  Updates visual notification, indicating that a message has arrived.
+ */
+function updateVisualNotification() {
+    var unreadMsgElement = document.getElementById('unreadMessages');
 
     if (unreadMessages) {
         unreadMsgElement.innerHTML = unreadMessages.toString();
-        unreadMsgBottomElement.innerHTML = unreadMessages.toString();
 
         ToolbarToggler.dockToolbar(true);
 
@@ -41,45 +67,12 @@ function setVisualNotification(show) {
             'style',
                 'top:' + topIndent +
                 '; left:' + leftIndent + ';');
-
-        var chatBottomButtonElement
-            = document.getElementById('chatBottomButton').parentNode;
-        var bottomLeftIndent = (UIUtil.getTextWidth(chatBottomButtonElement) -
-            UIUtil.getTextWidth(unreadMsgBottomElement)) / 2;
-        var bottomTopIndent = (UIUtil.getTextHeight(chatBottomButtonElement) -
-            UIUtil.getTextHeight(unreadMsgBottomElement)) / 2 - 2;
-
-        unreadMsgBottomElement.setAttribute(
-            'style',
-                'top:' + bottomTopIndent +
-                '; left:' + bottomLeftIndent + ';');
-
-
-        if (!glower.hasClass('icon-chat-simple')) {
-            glower.removeClass('icon-chat');
-            glower.addClass('icon-chat-simple');
-        }
     }
     else {
         unreadMsgElement.innerHTML = '';
-        unreadMsgBottomElement.innerHTML = '';
-        glower.removeClass('icon-chat-simple');
-        glower.addClass('icon-chat');
     }
 
-    if (show && !notificationInterval) {
-        notificationInterval = window.setInterval(function () {
-            glower.toggleClass('active');
-            bottomGlower.toggleClass('active glowing');
-        }, 800);
-    }
-    else if (!show && notificationInterval) {
-        window.clearInterval(notificationInterval);
-        notificationInterval = false;
-        glower.removeClass('active');
-        bottomGlower.removeClass('glowing');
-        bottomGlower.addClass('active');
-    }
+    $(unreadMsgElement).parent()[unreadMessages > 0 ? 'show' : 'hide']();
 }
 
 
@@ -144,7 +137,7 @@ function addSmileys() {
         smileysContainer.appendChild(smileyContainer);
     }
 
-    $("#chatspace").append(smileysContainer);
+    $("#chat_container").append(smileysContainer);
 }
 
 /**
@@ -152,7 +145,7 @@ function addSmileys() {
  */
 function resizeChatConversation() {
     var msgareaHeight = $('#usermsg').outerHeight();
-    var chatspace = $('#chatspace');
+    var chatspace = $('#' + CHAT_CONTAINER_ID);
     var width = chatspace.width();
     var chat = $('#chatconversation');
     var smileys = $('#smileysarea');
@@ -165,6 +158,17 @@ function resizeChatConversation() {
 }
 
 /**
+ * Focus input after 400 ms
+ * Found input by id
+ *
+ * @param id {string} input id
+ */
+function deferredFocus(id){
+    setTimeout(function (){
+        $(`#${id}`).focus();
+    }, 400);
+}
+/**
  * Chat related user interface.
  */
 var Chat = {
@@ -172,9 +176,14 @@ var Chat = {
      * Initializes chat related interface.
      */
     init (eventEmitter) {
+        initHTML();
         if (APP.settings.getDisplayName()) {
             Chat.setChatConversationMode(true);
         }
+
+        $("#toggle_smileys").click(function() {
+            Chat.toggleSmileys();
+        });
 
         $('#nickinput').keydown(function (event) {
             if (event.keyCode === 13) {
@@ -182,6 +191,7 @@ var Chat = {
                 let val = this.value;
                 this.value = '';
                 eventEmitter.emit(UIEvents.NICKNAME_CHANGED, val);
+                deferredFocus('usermsg');
             }
         });
 
@@ -208,13 +218,30 @@ var Chat = {
         };
         usermsg.autosize({callback: onTextAreaResize});
 
-        $("#chatspace").bind("shown",
-            function () {
+        eventEmitter.on(UIEvents.SIDE_TOOLBAR_CONTAINER_TOGGLED,
+            function(containerId, isVisible) {
+                if (containerId !== CHAT_CONTAINER_ID || !isVisible)
+                    return;
+
                 unreadMessages = 0;
-                setVisualNotification(false);
+                updateVisualNotification();
+
+                // Undock the toolbar when the chat is shown and if we're in a
+                // video mode.
+                if (VideoLayout.isLargeVideoVisible()) {
+                    ToolbarToggler.dockToolbar(false);
+                }
+
+                // if we are in conversation mode focus on the text input
+                // if we are not, focus on the display name input
+                if (APP.settings.getDisplayName())
+                    deferredFocus('usermsg');
+                else
+                    deferredFocus('nickinput');
             });
 
         addSmileys();
+        updateVisualNotification();
     },
 
     /**
@@ -231,7 +258,7 @@ var Chat = {
             if (!Chat.isVisible()) {
                 unreadMessages++;
                 UIUtil.playSoundNotification('chatNotification');
-                setVisualNotification(true);
+                updateVisualNotification();
             }
         }
 
@@ -282,31 +309,30 @@ var Chat = {
         if (subject) {
             subject = subject.trim();
         }
-        $('#subject').html(linkify(UIUtil.escapeHtml(subject)));
-        if (subject) {
-            $("#subject").css({display: "block"});
-        } else {
-            $("#subject").css({display: "none"});
-        }
+
+        let subjectId = 'subject';
+        let html = linkify(UIUtil.escapeHtml(subject));
+        $(`#${subjectId}`).html(html);
+        UIUtil.setVisible(subjectId, subject && subject.length > 0);
     },
 
     /**
      * Sets the chat conversation mode.
+     * Conversation mode is the normal chat mode, non conversation mode is
+     * where we ask user to input its display name.
      * @param {boolean} isConversationMode if chat should be in
      * conversation mode or not.
      */
     setChatConversationMode (isConversationMode) {
-        $('#chatspace').toggleClass('is-conversation-mode', isConversationMode);
-        if (isConversationMode) {
-            $('#usermsg').focus();
-        }
+        $('#' + CHAT_CONTAINER_ID)
+            .toggleClass('is-conversation-mode', isConversationMode);
     },
 
     /**
      * Resizes the chat area.
      */
     resizeChat (width, height) {
-        $('#chatspace').width(width).height(height);
+        $('#' + CHAT_CONTAINER_ID).width(width).height(height);
 
         resizeChatConversation();
     },
@@ -315,7 +341,8 @@ var Chat = {
      * Indicates if the chat is currently visible.
      */
     isVisible () {
-        return UIUtil.isVisible(document.getElementById("chatspace"));
+        return UIUtil.isVisible(
+            document.getElementById(CHAT_CONTAINER_ID));
     },
     /**
      * Shows and hides the window with the smileys

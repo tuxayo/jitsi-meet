@@ -1,24 +1,29 @@
-NPM = npm
-BROWSERIFY = ./node_modules/.bin/browserify
-UGLIFYJS = ./node_modules/.bin/uglifyjs
-EXORCIST = ./node_modules/.bin/exorcist
+BUILD_DIR = build
 CLEANCSS = ./node_modules/.bin/cleancss
-CSS_FILES = font.css toastr.css main.css videolayout_default.css font-awesome.css jquery-impromptu.css modaldialog.css notice.css popup_menu.css login_menu.css popover.css jitsi_popover.css contact_list.css chat.css welcome_page.css settingsmenu.css feedback.css jquery.contextMenu.css
 DEPLOY_DIR = libs
-BROWSERIFY_FLAGS = -d
-OUTPUT_DIR = .
 LIBJITSIMEET_DIR = node_modules/lib-jitsi-meet/
+NODE_SASS = ./node_modules/.bin/node-sass
+NPM = npm
+OUTPUT_DIR = .
+STYLES_BUNDLE = css/all.bundle.css
+STYLES_DESTINATION = css/all.css
+STYLES_MAIN = css/main.scss
+STYLES_UNSUPPORTED_BROWSER = css/unsupported_browser.scss
+WEBPACK = ./node_modules/.bin/webpack
 
-all: update-deps compile uglify deploy clean
+all: update-deps compile deploy clean
 
+# FIXME: there is a problem with node-sass not correctly installed (compiled)
+# a quick fix to make sure it is installed on every update
+# the problem appears on linux and not on macosx
 update-deps:
-	$(NPM) update
+	$(NPM) update && $(NPM) install node-sass
 
 compile:
-	$(BROWSERIFY) $(BROWSERIFY_FLAGS) -e app.js -s APP | $(EXORCIST) $(OUTPUT_DIR)/app.bundle.js.map > $(OUTPUT_DIR)/app.bundle.js
+	$(WEBPACK) -p
 
 clean:
-	rm -f $(OUTPUT_DIR)/app.bundle.*
+	rm -fr $(BUILD_DIR)
 
 deploy: deploy-init deploy-appbundle deploy-lib-jitsi-meet deploy-css deploy-local
 
@@ -26,25 +31,29 @@ deploy-init:
 	mkdir -p $(DEPLOY_DIR)
 
 deploy-appbundle:
-	cp $(OUTPUT_DIR)/app.bundle.min.js $(OUTPUT_DIR)/app.bundle.min.map \
-	$(OUTPUT_DIR)/app.bundle.js \
-	$(DEPLOY_DIR)
+	cp \
+		$(BUILD_DIR)/app.bundle.min.js \
+		$(BUILD_DIR)/app.bundle.min.map \
+		$(BUILD_DIR)/external_api.min.js \
+		$(BUILD_DIR)/external_api.min.map \
+		$(OUTPUT_DIR)/analytics.js \
+		$(DEPLOY_DIR)
 
 deploy-lib-jitsi-meet:
-	cp $(LIBJITSIMEET_DIR)/lib-jitsi-meet.min.js \
-	$(LIBJITSIMEET_DIR)/lib-jitsi-meet.min.map \
-	$(LIBJITSIMEET_DIR)/lib-jitsi-meet.js \
-	$(LIBJITSIMEET_DIR)/connection_optimization/external_connect.js \
-	$(DEPLOY_DIR)
+	cp \
+		$(LIBJITSIMEET_DIR)/lib-jitsi-meet.min.js \
+		$(LIBJITSIMEET_DIR)/lib-jitsi-meet.min.map \
+		$(LIBJITSIMEET_DIR)/connection_optimization/external_connect.js \
+		$(DEPLOY_DIR)
+
 deploy-css:
-	(cd css; cat $(CSS_FILES)) | $(CLEANCSS) > css/all.css
+	$(NODE_SASS) css/unsupported_browser.scss css/unsupported_browser.css ; \
+	$(NODE_SASS) $(STYLES_MAIN) $(STYLES_BUNDLE) && \
+	$(CLEANCSS) $(STYLES_BUNDLE) > $(STYLES_DESTINATION) ; \
+	rm $(STYLES_BUNDLE)
 
 deploy-local:
 	([ ! -x deploy-local.sh ] || ./deploy-local.sh)
-
-uglify:
-	$(UGLIFYJS) -p relative $(OUTPUT_DIR)/app.bundle.js -o $(OUTPUT_DIR)/app.bundle.min.js --source-map $(OUTPUT_DIR)/app.bundle.min.map --in-source-map $(OUTPUT_DIR)/app.bundle.js.map
-
 
 source-package:
 	mkdir -p source_package/jitsi-meet/css && \

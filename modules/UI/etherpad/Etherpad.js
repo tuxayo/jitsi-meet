@@ -2,9 +2,7 @@
 
 import VideoLayout from "../videolayout/VideoLayout";
 import LargeContainer from '../videolayout/LargeContainer';
-import UIUtil from "../util/UIUtil";
 import UIEvents from "../../../service/UI/UIEvents";
-import SidePanelToggler from "../side_pannels/SidePanelToggler";
 import FilmStrip from '../videolayout/FilmStrip';
 
 /**
@@ -65,6 +63,7 @@ class Etherpad extends LargeContainer {
 
         const iframe = document.createElement('iframe');
 
+        iframe.id = "etherpadIFrame";
         iframe.src = domain + name + '?' + options;
         iframe.frameBorder = 0;
         iframe.scrolling = "no";
@@ -102,6 +101,7 @@ class Etherpad extends LargeContainer {
         return document.getElementById('etherpad');
     }
 
+    // eslint-disable-next-line no-unused-vars
     resize (containerWidth, containerHeight, animate) {
         let height = containerHeight - FilmStrip.getFilmStripHeight();
         let width = containerWidth;

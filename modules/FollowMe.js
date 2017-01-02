@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+const logger = require("jitsi-meet-logger").getLogger(__filename);
 
 import UIEvents from '../service/UI/UIEvents';
 import VideoLayout from './UI/videolayout/VideoLayout';
@@ -154,9 +155,10 @@ class FollowMe {
 
         this._nextOnStage(smallVideo, isPinned);
 
-        this._sharedDocumentToggled
-            .bind(this, this._UI.getSharedDocumentManager().isVisible());
-
+        // check whether shared document is enabled/initialized
+        if(this._UI.getSharedDocumentManager())
+            this._sharedDocumentToggled
+                .bind(this, this._UI.getSharedDocumentManager().isVisible());
     }
 
     /**
@@ -260,25 +262,26 @@ class FollowMe {
      * @param newValue the new value
      * @private
      */
+    // eslint-disable-next-line no-unused-vars
     _localPropertyChange (property, oldValue, newValue) {
         // Only a moderator is allowed to send commands.
-        var conference = this._conference;
+        const conference = this._conference;
         if (!conference.isModerator)
             return;
 
-        var commands = conference.commands;
+        const commands = conference.commands;
         // XXX The "Follow Me" command represents a snapshot of all states
         // which are to be followed so don't forget to removeCommand before
         // sendCommand!
         commands.removeCommand(_COMMAND);
-        var self = this;
+        const local = this._local;
         commands.sendCommandOnce(
                 _COMMAND,
                 {
                     attributes: {
-                        filmStripVisible: self._local.filmStripVisible,
-                        nextOnStage: self._local.nextOnStage,
-                        sharedDocumentVisible: self._local.sharedDocumentVisible
+                        filmStripVisible: local.filmStripVisible,
+                        nextOnStage: local.nextOnStage,
+                        sharedDocumentVisible: local.sharedDocumentVisible
                     }
                 });
     }
@@ -306,7 +309,7 @@ class FollowMe {
 
         if (!this._conference.isParticipantModerator(id))
         {
-            console.warn('Received follow-me command ' +
+            logger.warn('Received follow-me command ' +
                 'not from moderator');
             return;
         }
@@ -352,10 +355,13 @@ class FollowMe {
     _onNextOnStage(id) {
         var clickId = null;
         var pin;
+        // if there is an id which is not pinned we schedule it for pin only the
+        // first time
         if(typeof id !== 'undefined' && !VideoLayout.isPinned(id)) {
             clickId = id;
             pin = true;
         }
+        // if there is no id, but we have a pinned one, let's unpin
         else if (typeof id == 'undefined' && VideoLayout.getPinnedId()) {
             clickId = VideoLayout.getPinnedId();
             pin = false;

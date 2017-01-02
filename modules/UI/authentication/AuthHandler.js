@@ -1,14 +1,19 @@
-/* global JitsiMeetJS, APP */
+/* global APP, config, JitsiMeetJS, Promise */
+const logger = require("jitsi-meet-logger").getLogger(__filename);
 
 import LoginDialog from './LoginDialog';
-import UIEvents from '../../../service/UI/UIEvents';
 import UIUtil from '../util/UIUtil';
 import {openConnection} from '../../../connection';
 
-const ConferenceEvents = JitsiMeetJS.events.conference;
+const ConnectionErrors = JitsiMeetJS.errors.connection;
 
 let externalAuthWindow;
 let authRequiredDialog;
+
+let isTokenAuthEnabled
+    = typeof config.tokenAuthUrl === "string" && config.tokenAuthUrl.length;
+let getTokenAuthUrl
+    = JitsiMeetJS.util.AuthUtil.getTokenAuthUrl.bind(null, config.tokenAuthUrl);
 
 /**
  * Authenticate using external service or just focus
@@ -23,19 +28,102 @@ function doExternalAuth (room, lockPassword) {
         return;
     }
     if (room.isJoined()) {
-        room.getExternalAuthUrl(true).then(function (url) {
+        let getUrl;
+        if (isTokenAuthEnabled) {
+            getUrl = Promise.resolve(getTokenAuthUrl(room.getName(), true));
+            initJWTTokenListener(room);
+        } else {
+            getUrl = room.getExternalAuthUrl(true);
+        }
+        getUrl.then(function (url) {
             externalAuthWindow = LoginDialog.showExternalAuthDialog(
                 url,
                 function () {
                     externalAuthWindow = null;
-                    room.join(lockPassword);
+                    if (!isTokenAuthEnabled) {
+                        room.join(lockPassword);
+                    }
                 }
             );
         });
     } else {
         // If conference has not been started yet
         // then  redirect to login page
-        room.getExternalAuthUrl().then(UIUtil.redirect);
+        if (isTokenAuthEnabled) {
+            redirectToTokenAuthService(room.getName());
+        } else {
+            room.getExternalAuthUrl().then(UIUtil.redirect);
+        }
+    }
+}
+
+/**
+ * Redirect the user to the token authentication service for the login to be
+ * performed. Once complete it is expected that the service wil bring the user
+ * back with "?jwt={the JWT token}" query parameter added.
+ * @param {string} [roomName] the name of the conference room.
+ */
+function redirectToTokenAuthService(roomName) {
+    UIUtil.redirect(getTokenAuthUrl(roomName, false));
+}
+
+/**
+ * Initializes 'message' listener that will wait for a JWT token to be received
+ * from the token authentication service opened in a popup window.
+ * @param room the name fo the conference room.
+ */
+function initJWTTokenListener(room) {
+    var listener = function (event) {
+        if (externalAuthWindow !== event.source) {
+            logger.warn("Ignored message not coming " +
+                "from external authnetication window");
+            return;
+        }
+        if (event.data && event.data.jwtToken) {
+            config.token = event.data.jwtToken;
+            logger.info("Received JWT token:", config.token);
+            var roomName = room.getName();
+            openConnection({retry: false, roomName: roomName })
+                .then(function (connection) {
+                    // Start new connection
+                    let newRoom = connection.initJitsiConference(
+                        roomName, APP.conference._getConferenceOptions());
+                    // Authenticate from the new connection to get
+                    // the session-ID from the focus, which wil then be used
+                    // to upgrade current connection's user role
+                    newRoom.room.moderator.authenticate().then(function () {
+                        connection.disconnect();
+                        // At this point we'll have session-ID stored in
+                        // the settings. It wil be used in the call below
+                        // to upgrade user's role
+                        room.room.moderator.authenticate()
+                            .then(function () {
+                                logger.info("User role upgrade done !");
+                                unregister();
+                            }).catch(function (err, errCode) {
+                                logger.error(
+                                    "Authentication failed: ", err, errCode);
+                                unregister();
+                            }
+                        );
+                    }).catch(function (error, code) {
+                        unregister();
+                        connection.disconnect();
+                        logger.error(
+                            'Authentication failed on the new connection',
+                            error, code);
+                    });
+                }, function (err) {
+                    unregister();
+                    logger.error("Failed to open new connection", err);
+                });
+        }
+    };
+    var unregister = function () {
+        window.removeEventListener("message", listener);
+    };
+    if (window.addEventListener) {
+        window.addEventListener("message", listener, false);
     }
 }
 
@@ -52,22 +140,20 @@ function doXmppAuth (room, lockPassword) {
         // (this will store sessionId in the localStorage)
         // 3. close new connection
         // 4. reallocate focus in current room
-        openConnection({id, password}).then(function (connection) {
+        openConnection({id, password, roomName: room.getName()}).then(
+        function (connection) {
             // open room
             let newRoom = connection.initJitsiConference(
                 room.getName(), APP.conference._getConferenceOptions()
             );
 
-            loginDialog.displayConnectionStatus(
-                APP.translation.translateString('connection.FETCH_SESSION_ID')
-            );
+            loginDialog.displayConnectionStatus('connection.FETCH_SESSION_ID');
 
             newRoom.room.moderator.authenticate().then(function () {
                 connection.disconnect();
 
                 loginDialog.displayConnectionStatus(
-                    APP.translation.translateString('connection.GOT_SESSION_ID')
-                );
+                    'connection.GOT_SESSION_ID');
 
                 // authenticate conference on the fly
                 room.join(lockPassword);
@@ -76,13 +162,10 @@ function doXmppAuth (room, lockPassword) {
             }).catch(function (error, code) {
                 connection.disconnect();
 
-                console.error('Auth on the fly failed', error);
+                logger.error('Auth on the fly failed', error);
 
-                let errorMsg = APP.translation.translateString(
-                    'connection.GET_SESSION_ID_ERROR'
-                );
-
-                loginDialog.displayError(errorMsg + code);
+                loginDialog.displayError(
+                    'connection.GET_SESSION_ID_ERROR', {code: code});
             });
         }, function (err) {
             loginDialog.displayError(err);
@@ -99,7 +182,7 @@ function doXmppAuth (room, lockPassword) {
  * @param {string} [lockPassword] password to use if the conference is locked
  */
 function authenticate (room, lockPassword) {
-    if (room.isExternalAuthEnabled()) {
+    if (isTokenAuthEnabled || room.isExternalAuthEnabled()) {
         doExternalAuth(room, lockPassword);
     } else {
         doXmppAuth(room, lockPassword);
@@ -156,10 +239,49 @@ function closeAuth() {
     }
 }
 
+function showXmppPasswordPrompt(roomName, connect) {
+    return new Promise(function (resolve, reject) {
+        let authDialog = LoginDialog.showAuthDialog(
+            function (id, password) {
+                connect(id, password, roomName).then(function (connection) {
+                    authDialog.close();
+                    resolve(connection);
+                }, function (err) {
+                    if (err === ConnectionErrors.PASSWORD_REQUIRED) {
+                        authDialog.displayError(err);
+                    } else {
+                        authDialog.close();
+                        reject(err);
+                    }
+                });
+            }
+        );
+    });
+}
+
+/**
+ * Show Authentication Dialog and try to connect with new credentials.
+ * If failed to connect because of PASSWORD_REQUIRED error
+ * then ask for password again.
+ * @param {string} [roomName] name of the conference room
+ * @param {function(id, password, roomName)} [connect] function that returns
+ * a Promise which resolves with JitsiConnection or fails with one of
+ * ConnectionErrors.
+ * @returns {Promise<JitsiConnection>}
+ */
+function requestAuth(roomName, connect) {
+    if (isTokenAuthEnabled) {
+        // This Promise never resolves as user gets redirected to another URL
+        return new Promise(() => redirectToTokenAuthService(roomName));
+    } else {
+        return showXmppPasswordPrompt(roomName, connect);
+    }
+}
 
 export default {
     authenticate,
     requireAuth,
+    requestAuth,
     closeAuth,
     logout
 };

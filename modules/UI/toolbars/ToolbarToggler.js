@@ -1,12 +1,15 @@
 /* global APP, config, $, interfaceConfig */
 
 import UIUtil from '../util/UIUtil';
-import BottomToolbar from './BottomToolbar';
 import Toolbar from './Toolbar';
-import FilmStrip from '../videolayout/FilmStrip.js';
+import SideContainerToggler from "../side_pannels/SideContainerToggler";
 
 let toolbarTimeoutObject;
 let toolbarTimeout = interfaceConfig.INITIAL_TOOLBAR_TIMEOUT;
+/**
+ * If true the toolbar will be always displayed
+ */
+let alwaysVisibleToolbar = false;
 
 function showDesktopSharingButton() {
     if (APP.conference.isDesktopSharingEnabled &&
@@ -19,31 +22,76 @@ function showDesktopSharingButton() {
 
 /**
  * Hides the toolbar.
+ *
+ * @param force {true} to force the hiding of the toolbar without caring about
+ * the extended toolbar side panels.
  */
-function hideToolbar() {
-    if (config.alwaysVisibleToolbar) {
+function hideToolbar(force) { // eslint-disable-line no-unused-vars
+    if (alwaysVisibleToolbar) {
         return;
     }
 
     clearTimeout(toolbarTimeoutObject);
     toolbarTimeoutObject = null;
 
-    if (Toolbar.isHovered()) {
+    if (force !== true &&
+            (Toolbar.isHovered()
+                || APP.UI.isRingOverlayVisible()
+                || SideContainerToggler.isVisible())) {
         toolbarTimeoutObject = setTimeout(hideToolbar, toolbarTimeout);
     } else {
         Toolbar.hide();
         $('#subject').animate({top: "-=40"}, 300);
-        if (!FilmStrip.isFilmStripVisible()) {
-            BottomToolbar.hide(true);
-        }
     }
 }
 
 const ToolbarToggler = {
     /**
-     * Shows the main toolbar.
+     * Initializes the ToolbarToggler
      */
-    showToolbar () {
+    init() {
+        alwaysVisibleToolbar = (config.alwaysVisibleToolbar === true);
+
+        // disabled
+        //this._registerWindowClickListeners();
+    },
+
+    /**
+     * Registers click listeners handling the show and hode of toolbars when
+     * user clicks outside of toolbar area.
+     */
+    _registerWindowClickListeners() {
+        $(window).click(function() {
+            (Toolbar.isEnabled() && Toolbar.isVisible())
+                ? hideToolbar(true)
+                : this.showToolbar();
+        }.bind(this));
+
+        Toolbar.registerClickListeners(function(event){
+            event.stopPropagation();
+        });
+    },
+
+    /**
+     * Sets the value of alwaysVisibleToolbar variable.
+     * @param value {boolean} the new value of alwaysVisibleToolbar variable
+     */
+    setAlwaysVisibleToolbar(value) {
+        alwaysVisibleToolbar = value;
+    },
+
+    /**
+     * Resets the value of alwaysVisibleToolbar variable to the default one.
+     */
+    resetAlwaysVisibleToolbar() {
+        alwaysVisibleToolbar = (config.alwaysVisibleToolbar === true);
+    },
+
+    /**
+     * Shows the main toolbar.
+     * @param timeout (optional) to specify custom timeout value
+     */
+    showToolbar (timeout) {
         if (interfaceConfig.filmStripOnly) {
             return;
         }
@@ -55,17 +103,13 @@ const ToolbarToggler = {
             updateTimeout = true;
         }
 
-        if (BottomToolbar.isEnabled() && !BottomToolbar.isVisible()) {
-            BottomToolbar.show(true);
-            updateTimeout = true;
-        }
-
         if (updateTimeout) {
             if (toolbarTimeoutObject) {
                 clearTimeout(toolbarTimeoutObject);
                 toolbarTimeoutObject = null;
             }
-            toolbarTimeoutObject = setTimeout(hideToolbar, toolbarTimeout);
+            toolbarTimeoutObject
+                = setTimeout(hideToolbar, timeout || toolbarTimeout);
             toolbarTimeout = interfaceConfig.TOOLBAR_TIMEOUT;
         }
 

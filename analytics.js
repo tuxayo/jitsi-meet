@@ -1,5 +1,9 @@
+/* global ga */
+
 (function (ctx) {
   function Analytics() {
+    /* eslint-disable */
+
     /**
      * Google Analytics
      */
@@ -8,11 +12,22 @@
     })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
     ga('create', 'UA-319188-14', 'jit.si');
     ga('send', 'pageview');
+
+    /* eslint-enable */
   }
 
   Analytics.prototype.sendEvent = function (action, data) {
-    ga('send', 'event', 'jit.si', action);
+    // empty label if missing value for it and add the value,
+    // the value should be integer or null
+    var value = data.value;
+    value = value? Math.round(parseFloat(value)) : null;
+    var label = data.label || "";
+
+    ga('send', 'event', 'jit.si',
+        action + '.' + data.browserName, label, value);
   };
 
-  ctx.Analytics = Analytics;
+  if(typeof ctx.analyticsHandlers === "undefined")
+    ctx.analyticsHandlers = [];
+  ctx.analyticsHandlers.push(Analytics);
 }(window));
